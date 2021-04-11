@@ -1,4 +1,4 @@
-package com.rit.cleaner.parcerobj;
+package com.rit.cleaner.ParcerReviewModel;
 
 // import com.fasterxml.jackson.databind.ObjectMapper; // version 2.11.1
 // import com.fasterxml.jackson.annotation.JsonProperty; // version 2.11.1
@@ -10,5 +10,21 @@ public class DiscussionCounter {
     public boolean hasUnresolved;
     public int unresolvedCount;
     public int resolvedCount;
+
+    public int getCount() {
+        return count;
+    }
+
+    public boolean isHasUnresolved() {
+        return hasUnresolved;
+    }
+
+    public int getUnresolvedCount() {
+        return unresolvedCount;
+    }
+
+    public int getResolvedCount() {
+        return resolvedCount;
+    }
 }
 

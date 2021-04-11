@@ -1,4 +1,4 @@
-package com.rit.cleaner.parcerobj;
+package com.rit.cleaner.ParcerReviewModel;
 
 // import com.fasterxml.jackson.databind.ObjectMapper; // version 2.11.1
 // import com.fasterxml.jackson.annotation.JsonProperty; // version 2.11.1
@@ -9,5 +9,17 @@ public class CompletionRate {
     public int completedCount;
     public int reviewersCount;
     public boolean hasConcern;
+
+    public int getCompletedCount() {
+        return completedCount;
+    }
+
+    public int getReviewersCount() {
+        return reviewersCount;
+    }
+
+    public boolean isHasConcern() {
+        return hasConcern;
+    }
 }
 
