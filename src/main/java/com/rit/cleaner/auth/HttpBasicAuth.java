@@ -23,7 +23,6 @@ public class HttpBasicAuth {
 			con.setRequestMethod("POST");
 			con.setDoOutput(true);
 			con.setRequestProperty("Accept", "application/json");
-			con.setRequestProperty("Authorization", "Basic cGlyb3poa292LW5hOldpZGFlIUZhNg==");
 			con.setRequestProperty("Content-Type", "application/json");
 
 			String data = "{\"projectId\": \"elk\", \"sortBy\": \"id,desc\", \"limit\": 1}";
