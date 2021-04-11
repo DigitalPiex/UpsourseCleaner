@@ -5,6 +5,7 @@ public class RevisionResult {
 	public NewRevisions newRevisions;
 	public boolean hasMissingRevisions;
 	public boolean canSquash;
+	public boolean canTrackBranch;
 	public String branchHint;
 
 	public AllRevisions getAllRevisions() {
@@ -21,6 +22,10 @@ public class RevisionResult {
 
 	public boolean isCanSquash() {
 		return canSquash;
+	}
+
+	public boolean isCanTrackBranch() {
+		return canTrackBranch;
 	}
 
 	public String getBranchHint() {

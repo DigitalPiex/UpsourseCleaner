@@ -11,9 +11,8 @@ import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public class UpsourceCleaner {
 
@@ -26,14 +25,14 @@ public class UpsourceCleaner {
 		try {
 
 			createReviewIdList(getReviewList());
+			getRevisionsInReview();
 
-/*			System.out.println(con.getResponseCode() + " " + con.getResponseMessage());
-			con.disconnect();*/
 
 		} catch (IOException protocolException) {
 			protocolException.printStackTrace();
 		}
-		List<String> mm = new ArrayList<>();
+
+		Collections.sort(reviewsWithEmptyRevisions);
 		System.out.println(reviewsWithEmptyRevisions);
 
 	}
@@ -79,18 +78,6 @@ public class UpsourceCleaner {
 		return con;
 	}
 
-/*	private static void checkMissingRevisions(String response) throws com.fasterxml.jackson.core.JsonProcessingException {
-		ObjectMapper mapper = new ObjectMapper();
-		RevisionRoot rootObj = mapper.readValue(response, RevisionRoot.class);
-
-		rootObj
-				.getResult()
-				.stream()
-				.filter(RevisionResult::isHasMissingRevisions)
-				.forEach();
-	}*/
-
-
 	private static void createReviewIdList(String response) throws com.fasterxml.jackson.core.JsonProcessingException {
 		ObjectMapper mapper = new ObjectMapper();
 		ReviewRoot reviewRootObj = mapper.readValue(response, ReviewRoot.class);
@@ -103,7 +90,6 @@ public class UpsourceCleaner {
 				.map(ReviewId::getReviewId)
 				.forEach(listOfReviewsId::add);
 	}
-
 
 	private static void getRevisionsInReview() {
 		listOfReviewsId.forEach(str -> makeRevisionRequest(setConnectionForRevisionsInReview(), str));
@@ -118,6 +104,8 @@ public class UpsourceCleaner {
 			ObjectMapper revisionMapper = new ObjectMapper();
 			RevisionRoot reviewRootObj = revisionMapper.readValue(response, RevisionRoot.class);
 
+			reviewRootObj.getResult().getAllRevisions()
+
 			if (reviewRootObj.getResult().isHasMissingRevisions()) {
 				reviewsWithEmptyRevisions.add(str);
 			}
@@ -130,7 +118,7 @@ public class UpsourceCleaner {
 	private static String getReviewList() throws IOException {
 
 		HttpURLConnection con = getConnectionForReviewList();
-		String jsonRequest = "{\"limit\": 5}";
+		String jsonRequest = "{\"limit\": 1000}";
 
 		return doPostRequestAndReceiveResponse(con, jsonRequest);
 	}
