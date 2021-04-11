@@ -4,39 +4,28 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rit.cleaner.ParcerReviewModel.Review;
 import com.rit.cleaner.ParcerReviewModel.ReviewId;
 import com.rit.cleaner.ParcerReviewModel.ReviewRoot;
+import com.rit.cleaner.PercerRevisionModel.RevisionResult;
 import com.rit.cleaner.PercerRevisionModel.RevisionRoot;
 
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class UpsourceCleaner {
 
 	private static final List<String> listOfReviewsId = new ArrayList<>();
 	private static final List<String> listOfRevisions = new ArrayList<>();
+	private static final List<String> reviewsWithEmptyRevisions = new ArrayList<>();
 
 	public static void main(String[] args) {
 
 		try {
 
-	/*		//URL getReviewRequestUrl = new URL("https://codereview.ritperm.rt.ru/~rpc/getReviewDetails");
-			//URL getReviewRequestUrl = new URL("https://codereview.ritperm.rt.ru/~rpc/getReviewSummaryChanges");
-			//URL getReviewRequestUrl = new URL("https://codereview.ritperm.rt.ru/~rpc/getRevisionsInReview");
-			URL getReviewRequestUrl = new URL("https://codereview.ritperm.rt.ru/~rpc/getReviews");
-			HttpURLConnection con = configureConnection(getReviewRequestUrl);
-
-			//String jsonRequest = "{\"projectId\": \"elk\", \"sortBy\": \"id,desc\", \"limit\": 1}";
-			String jsonRequest = "{\"limit\": 1000}";
-			//String jsonRequest = "{\"projectId\": \"elk\", \"reviewId\": \"ELK-CR-468\"}";
-			//String jsonRequest = "{\"reviewId\":{\"projectId\": \"elk\", \"reviewId\": \"ELK-CR-468\"}}";
-			//String jsonRequest = "{\"projectId\": \"elk\", \"reviewId\": \"ELK-CR-468\"}";
-
-			doPostRequestAndReceiveResponse(con, jsonRequest);*/
-
-			createReviewIdList(getReviewList());//получаем лист с Id всех ревью
-			getRevisionsInReview();
+			createReviewIdList(getReviewList());
 
 /*			System.out.println(con.getResponseCode() + " " + con.getResponseMessage());
 			con.disconnect();*/
@@ -45,7 +34,7 @@ public class UpsourceCleaner {
 			protocolException.printStackTrace();
 		}
 		List<String> mm = new ArrayList<>();
-		System.out.println(listOfRevisions);
+		System.out.println(reviewsWithEmptyRevisions);
 
 	}
 
@@ -96,11 +85,9 @@ public class UpsourceCleaner {
 
 		rootObj
 				.getResult()
-				.getReviews()
 				.stream()
-				.map(Review::getReviewId)
-				.map(ReviewId::getReviewId)
-				.forEach(listOfReviewsId::add);
+				.filter(RevisionResult::isHasMissingRevisions)
+				.forEach();
 	}*/
 
 
@@ -118,14 +105,23 @@ public class UpsourceCleaner {
 	}
 
 
-	private static void getRevisionsInReview() throws IOException {
+	private static void getRevisionsInReview() {
 		listOfReviewsId.forEach(str -> makeRevisionRequest(setConnectionForRevisionsInReview(), str));
 	}
 
 	private static void makeRevisionRequest(HttpURLConnection con, String str) {
 		try {
+
 			String jsonRequest = "{\"projectId\": \"elk\", \"reviewId\":" + "\"" + str + "\"}";
-			listOfRevisions.add(doPostRequestAndReceiveResponse(con, jsonRequest));
+			String response = doPostRequestAndReceiveResponse(con, jsonRequest);
+
+			ObjectMapper revisionMapper = new ObjectMapper();
+			RevisionRoot reviewRootObj = revisionMapper.readValue(response, RevisionRoot.class);
+
+			if (reviewRootObj.getResult().isHasMissingRevisions()) {
+				reviewsWithEmptyRevisions.add(str);
+			}
+
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -134,7 +130,7 @@ public class UpsourceCleaner {
 	private static String getReviewList() throws IOException {
 
 		HttpURLConnection con = getConnectionForReviewList();
-		String jsonRequest = "{\"limit\": 1000}";
+		String jsonRequest = "{\"limit\": 5}";
 
 		return doPostRequestAndReceiveResponse(con, jsonRequest);
 	}
