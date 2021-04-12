@@ -9,11 +9,15 @@ import com.rit.cleaner.enums.RequestURL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
-import java.net.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class UpsourceCleaner {
@@ -42,9 +46,6 @@ public class UpsourceCleaner {
 		} catch (IOException protocolException) {
 			protocolException.printStackTrace();
 		}
-
-		Collections.sort(REVIEWS_WITH_NO_REVISIONS);
-		REVIEWS_WITH_NO_REVISIONS.forEach(System.out::println);
 
 	}
 
@@ -145,8 +146,8 @@ public class UpsourceCleaner {
 
 	private static void makeCloseReviewRequest(HttpURLConnection con, String reviewId) {
 		String jsonRequest = "{\"reviewId\": {\"projectId\": \"elk\", \"reviewId\":" + "\"" + reviewId + "\"" + "}, \"isFlagged\":" + true + "}";
-		String response = doPostRequestAndReceiveResponse(con, jsonRequest);
-		logger.info(response);
+		doPostRequestAndReceiveResponse(con, jsonRequest);
+		logger.info("Ревью " + reviewId + " закрыто");
 	}
 
 	/**
@@ -155,7 +156,7 @@ public class UpsourceCleaner {
 	private static String getReviewList() throws IOException {
 
 		HttpURLConnection con = setConnectionForReviewList();
-		String jsonRequest = "{\"limit\": 10, \"sortBy\": \"id,desc\"}";
+		String jsonRequest = "{\"limit\": 100000, \"sortBy\": \"id,desc\"}";
 
 		return doPostRequestAndReceiveResponse(con, jsonRequest);
 	}
@@ -187,6 +188,9 @@ public class UpsourceCleaner {
 		return configureConnection(getReviewRequestUrl);
 	}
 
+	/**
+	 * @return возвращает коннекцию для закрытия ревью
+	 */
 	private static HttpURLConnection setConnectionForCloseReview() {
 		URL getReviewRequestUrl = null;
 		try {
