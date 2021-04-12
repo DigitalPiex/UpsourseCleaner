@@ -6,6 +6,8 @@ import com.rit.cleaner.ParcerReviewModel.Review;
 import com.rit.cleaner.ParcerReviewModel.ReviewId;
 import com.rit.cleaner.ParcerReviewModel.ReviewRoot;
 import com.rit.cleaner.enums.RequestURL;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.*;
@@ -15,6 +17,8 @@ import java.util.Collections;
 import java.util.List;
 
 public class UpsourceCleaner {
+
+	private static final Logger logger = LoggerFactory.getLogger(UpsourceCleaner.class);
 
 	private static final ObjectMapper REVIEW_MAPPER = new ObjectMapper();
 	private static final ObjectMapper REVISION_MAPPER = new ObjectMapper();
@@ -30,6 +34,7 @@ public class UpsourceCleaner {
 
 			createReviewIdList(getReviewList());
 			getReviewsWithNoRevisions();
+			closeEmptyReviews();
 
 			long b = System.currentTimeMillis();
 			System.out.println(b - a);
@@ -39,7 +44,7 @@ public class UpsourceCleaner {
 		}
 
 		Collections.sort(REVIEWS_WITH_NO_REVISIONS);
-		System.out.println(REVIEWS_WITH_NO_REVISIONS);
+		REVIEWS_WITH_NO_REVISIONS.forEach(System.out::println);
 
 	}
 
@@ -72,7 +77,6 @@ public class UpsourceCleaner {
 	}
 
 	/**
-	 *
 	 * @return - настраивает и возвращает коннекцию
 	 */
 	private static HttpURLConnection configureConnection(URL url) {
@@ -112,11 +116,15 @@ public class UpsourceCleaner {
 		LIST_OF_REVIEWS_ID.forEach(str -> makeSummaryChangesRequest(setConnectionForSummaryChangesInReview(), str));
 	}
 
+	private static void closeEmptyReviews() {
+		REVIEWS_WITH_NO_REVISIONS.forEach(str -> makeCloseReviewRequest(setConnectionForCloseReview(), str));
+	}
+
 	/**
-	 * @param con - HttpURLConnection для данного запроса
+	 * @param con      - HttpURLConnection для данного запроса
 	 * @param reviewId - номер ревью
-	 *
-	 * Добавляет в лист REVIEWS_WITH_NO_REVISIONS ревью без ревизий
+	 *                 <p>
+	 *                 Добавляет в лист REVIEWS_WITH_NO_REVISIONS ревью без ревизий
 	 */
 	private static void makeSummaryChangesRequest(HttpURLConnection con, String reviewId) {
 		try {
@@ -135,13 +143,19 @@ public class UpsourceCleaner {
 		}
 	}
 
+	private static void makeCloseReviewRequest(HttpURLConnection con, String reviewId) {
+		String jsonRequest = "{\"reviewId\": {\"projectId\": \"elk\", \"reviewId\":" + "\"" + reviewId + "\"" + "}, \"isFlagged\":" + true + "}";
+		String response = doPostRequestAndReceiveResponse(con, jsonRequest);
+		logger.info(response);
+	}
+
 	/**
 	 * @return возвращает все ревью в проекте
 	 */
 	private static String getReviewList() throws IOException {
 
-		HttpURLConnection con = getConnectionForReviewList();
-		String jsonRequest = "{\"limit\": 100000}";
+		HttpURLConnection con = setConnectionForReviewList();
+		String jsonRequest = "{\"limit\": 10, \"sortBy\": \"id,desc\"}";
 
 		return doPostRequestAndReceiveResponse(con, jsonRequest);
 	}
@@ -163,10 +177,20 @@ public class UpsourceCleaner {
 	/**
 	 * @return возвращает коннекцию для получения всех ревью в проекте
 	 */
-	private static HttpURLConnection getConnectionForReviewList() {
+	private static HttpURLConnection setConnectionForReviewList() {
 		URL getReviewRequestUrl = null;
 		try {
 			getReviewRequestUrl = new URL(RequestURL.GET_REVIEWS.toString());
+		} catch (MalformedURLException e) {
+			e.printStackTrace();
+		}
+		return configureConnection(getReviewRequestUrl);
+	}
+
+	private static HttpURLConnection setConnectionForCloseReview() {
+		URL getReviewRequestUrl = null;
+		try {
+			getReviewRequestUrl = new URL(RequestURL.CLOSE_REVIEW.toString());
 		} catch (MalformedURLException e) {
 			e.printStackTrace();
 		}
