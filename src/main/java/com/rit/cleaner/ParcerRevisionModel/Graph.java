@@ -1,4 +1,4 @@
-package com.rit.cleaner.PercerRevisionModel;
+package com.rit.cleaner.ParcerRevisionModel;
 
 import java.util.List;
 

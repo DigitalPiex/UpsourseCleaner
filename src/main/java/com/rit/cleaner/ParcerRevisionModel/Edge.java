@@ -1,4 +1,4 @@
-package com.rit.cleaner.PercerRevisionModel;
+package com.rit.cleaner.ParcerRevisionModel;
 
 public class Edge {
 	public int position;

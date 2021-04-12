@@ -1,11 +1,11 @@
 package com.rit.cleaner.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rit.cleaner.ParcerChangesModel.ChangesRoot;
 import com.rit.cleaner.ParcerReviewModel.Review;
 import com.rit.cleaner.ParcerReviewModel.ReviewId;
 import com.rit.cleaner.ParcerReviewModel.ReviewRoot;
-import com.rit.cleaner.PercerRevisionModel.RevisionResult;
-import com.rit.cleaner.PercerRevisionModel.RevisionRoot;
+import com.rit.cleaner.enums.RequestURL;
 
 import java.io.*;
 import java.net.*;
@@ -16,28 +16,37 @@ import java.util.List;
 
 public class UpsourceCleaner {
 
-	private static final List<String> listOfReviewsId = new ArrayList<>();
-	private static final List<String> listOfRevisions = new ArrayList<>();
-	private static final List<String> reviewsWithEmptyRevisions = new ArrayList<>();
+	private static final ObjectMapper REVIEW_MAPPER = new ObjectMapper();
+	private static final ObjectMapper REVISION_MAPPER = new ObjectMapper();
+
+	private static final List<String> LIST_OF_REVIEWS_ID = new ArrayList<>();
+	private static final List<String> REVIEWS_WITH_NO_REVISIONS = new ArrayList<>();
 
 	public static void main(String[] args) {
 
 		try {
 
-			createReviewIdList(getReviewList());
-			getRevisionsInReview();
+			long a = System.currentTimeMillis();
 
+			createReviewIdList(getReviewList());
+			getReviewsWithNoRevisions();
+
+			long b = System.currentTimeMillis();
+			System.out.println(b - a);
 
 		} catch (IOException protocolException) {
 			protocolException.printStackTrace();
 		}
 
-		Collections.sort(reviewsWithEmptyRevisions);
-		System.out.println(reviewsWithEmptyRevisions);
+		Collections.sort(REVIEWS_WITH_NO_REVISIONS);
+		System.out.println(REVIEWS_WITH_NO_REVISIONS);
 
 	}
 
-	private static String doPostRequestAndReceiveResponse(HttpURLConnection con, String jsonRequest) throws IOException {
+	/**
+	 * Обработчик запросов
+	 */
+	private static String doPostRequestAndReceiveResponse(HttpURLConnection con, String jsonRequest) {
 
 		StringBuilder response = new StringBuilder();
 		try (OutputStream os = con.getOutputStream()) {
@@ -62,6 +71,10 @@ public class UpsourceCleaner {
 		return response.toString();
 	}
 
+	/**
+	 *
+	 * @return - настраивает и возвращает коннекцию
+	 */
 	private static HttpURLConnection configureConnection(URL url) {
 		HttpURLConnection con = null;
 		try {
@@ -78,9 +91,13 @@ public class UpsourceCleaner {
 		return con;
 	}
 
+	/**
+	 * Извлекает айдишники всех ревью из ответа и добавляет их в LIST_OF_REVIEWS_ID
+	 *
+	 * @param response - json-ответ на наш запрос
+	 */
 	private static void createReviewIdList(String response) throws com.fasterxml.jackson.core.JsonProcessingException {
-		ObjectMapper mapper = new ObjectMapper();
-		ReviewRoot reviewRootObj = mapper.readValue(response, ReviewRoot.class);
+		ReviewRoot reviewRootObj = REVIEW_MAPPER.readValue(response, ReviewRoot.class);
 
 		reviewRootObj
 				.getResult()
@@ -88,26 +105,29 @@ public class UpsourceCleaner {
 				.stream()
 				.map(Review::getReviewId)
 				.map(ReviewId::getReviewId)
-				.forEach(listOfReviewsId::add);
+				.forEach(LIST_OF_REVIEWS_ID::add);
 	}
 
-	private static void getRevisionsInReview() {
-		listOfReviewsId.forEach(str -> makeRevisionRequest(setConnectionForRevisionsInReview(), str));
+	private static void getReviewsWithNoRevisions() {
+		LIST_OF_REVIEWS_ID.forEach(str -> makeSummaryChangesRequest(setConnectionForSummaryChangesInReview(), str));
 	}
 
-	private static void makeRevisionRequest(HttpURLConnection con, String str) {
+	/**
+	 * @param con - HttpURLConnection для данного запроса
+	 * @param reviewId - номер ревью
+	 *
+	 * Добавляет в лист REVIEWS_WITH_NO_REVISIONS ревью без ревизий
+	 */
+	private static void makeSummaryChangesRequest(HttpURLConnection con, String reviewId) {
 		try {
 
-			String jsonRequest = "{\"projectId\": \"elk\", \"reviewId\":" + "\"" + str + "\"}";
+			String jsonRequest = "{\"reviewId\": {\"projectId\": \"elk\", \"reviewId\":" + "\"" + reviewId + "\"}}";
 			String response = doPostRequestAndReceiveResponse(con, jsonRequest);
 
-			ObjectMapper revisionMapper = new ObjectMapper();
-			RevisionRoot reviewRootObj = revisionMapper.readValue(response, RevisionRoot.class);
+			ChangesRoot revisionRootObj = REVISION_MAPPER.readValue(response, ChangesRoot.class);
 
-			reviewRootObj.getResult().getAllRevisions()
-
-			if (reviewRootObj.getResult().isHasMissingRevisions()) {
-				reviewsWithEmptyRevisions.add(str);
+			if (revisionRootObj.getResult().getAnnotation() != null) {
+				REVIEWS_WITH_NO_REVISIONS.add(reviewId);
 			}
 
 		} catch (IOException e) {
@@ -115,10 +135,13 @@ public class UpsourceCleaner {
 		}
 	}
 
+	/**
+	 * @return возвращает все ревью в проекте
+	 */
 	private static String getReviewList() throws IOException {
 
 		HttpURLConnection con = getConnectionForReviewList();
-		String jsonRequest = "{\"limit\": 1000}";
+		String jsonRequest = "{\"limit\": 100000}";
 
 		return doPostRequestAndReceiveResponse(con, jsonRequest);
 	}
@@ -126,10 +149,10 @@ public class UpsourceCleaner {
 	/**
 	 * @return возвращает коннекцию для получения всех ревизий в ревью
 	 */
-	private static HttpURLConnection setConnectionForRevisionsInReview() {
+	private static HttpURLConnection setConnectionForSummaryChangesInReview() {
 		URL getReviewRequestUrl = null;
 		try {
-			getReviewRequestUrl = new URL("https://codereview.ritperm.rt.ru/~rpc/getRevisionsInReview");
+			getReviewRequestUrl = new URL(RequestURL.GET_SUM_CHANGES.toString());
 
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -143,7 +166,7 @@ public class UpsourceCleaner {
 	private static HttpURLConnection getConnectionForReviewList() {
 		URL getReviewRequestUrl = null;
 		try {
-			getReviewRequestUrl = new URL("https://codereview.ritperm.rt.ru/~rpc/getReviews");
+			getReviewRequestUrl = new URL(RequestURL.GET_REVIEWS.toString());
 		} catch (MalformedURLException e) {
 			e.printStackTrace();
 		}
