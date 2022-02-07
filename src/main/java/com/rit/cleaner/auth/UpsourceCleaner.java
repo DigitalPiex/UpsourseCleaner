@@ -9,15 +9,13 @@ import com.rit.cleaner.enums.RequestURL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 public class UpsourceCleaner {
@@ -33,25 +31,17 @@ public class UpsourceCleaner {
 	public static void main(String[] args) {
 
 		try {
-
-			long a = System.currentTimeMillis();
-
 			createReviewIdList(getReviewList());
 			getReviewsWithNoRevisions();
 			closeEmptyReviews();
-
-			long b = System.currentTimeMillis();
-			System.out.println(b - a);
-
 		} catch (IOException protocolException) {
 			protocolException.printStackTrace();
 		}
 
+		System.out.println(REVIEWS_WITH_NO_REVISIONS);
+
 	}
 
-	/**
-	 * Обработчик запросов
-	 */
 	private static String doPostRequestAndReceiveResponse(HttpURLConnection con, String jsonRequest) {
 
 		StringBuilder response = new StringBuilder();
@@ -77,30 +67,6 @@ public class UpsourceCleaner {
 		return response.toString();
 	}
 
-	/**
-	 * @return - настраивает и возвращает коннекцию
-	 */
-	private static HttpURLConnection configureConnection(URL url) {
-		HttpURLConnection con = null;
-		try {
-			con = (HttpURLConnection) url.openConnection();
-			con.setRequestMethod("POST");
-			con.setDoOutput(true);
-			con.setRequestProperty("Accept", "application/json");
-			con.setRequestProperty("Authorization", "Basic cGlyb3poa292LW5hOldpZGFlIUZhNg==");
-			con.setRequestProperty("Content-Type", "application/json");
-
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return con;
-	}
-
-	/**
-	 * Извлекает айдишники всех ревью из ответа и добавляет их в LIST_OF_REVIEWS_ID
-	 *
-	 * @param response - json-ответ на наш запрос
-	 */
 	private static void createReviewIdList(String response) throws com.fasterxml.jackson.core.JsonProcessingException {
 		ReviewRoot reviewRootObj = REVIEW_MAPPER.readValue(response, ReviewRoot.class);
 
@@ -114,18 +80,17 @@ public class UpsourceCleaner {
 	}
 
 	private static void getReviewsWithNoRevisions() {
-		LIST_OF_REVIEWS_ID.forEach(str -> makeSummaryChangesRequest(setConnectionForSummaryChangesInReview(), str));
+		LIST_OF_REVIEWS_ID
+				.forEach(str -> makeSummaryChangesRequest(getConnection(RequestURL.GET_SUM_CHANGES), str));
 	}
 
 	private static void closeEmptyReviews() {
-		REVIEWS_WITH_NO_REVISIONS.forEach(str -> makeCloseReviewRequest(setConnectionForCloseReview(), str));
+		REVIEWS_WITH_NO_REVISIONS
+				.forEach(reviewId -> makeCloseReviewRequest(getConnection(RequestURL.CLOSE_REVIEW), reviewId));
 	}
 
 	/**
-	 * @param con      - HttpURLConnection для данного запроса
-	 * @param reviewId - номер ревью
-	 *                 <p>
-	 *                 Добавляет в лист REVIEWS_WITH_NO_REVISIONS ревью без ревизий
+	 * Добавляет в лист REVIEWS_WITH_NO_REVISIONS ревью без ревизий
 	 */
 	private static void makeSummaryChangesRequest(HttpURLConnection con, String reviewId) {
 		try {
@@ -134,7 +99,7 @@ public class UpsourceCleaner {
 			String response = doPostRequestAndReceiveResponse(con, jsonRequest);
 
 			ChangesRoot revisionRootObj = REVISION_MAPPER.readValue(response, ChangesRoot.class);
-
+			//у пустых ревью есть аннотация "Review does not contain any revisions."
 			if (revisionRootObj.getResult().getAnnotation() != null) {
 				REVIEWS_WITH_NO_REVISIONS.add(reviewId);
 			}
@@ -151,53 +116,47 @@ public class UpsourceCleaner {
 	}
 
 	/**
-	 * @return возвращает все ревью в проекте
+	 * @return возвращает первые limit пустых/закрытых ревью в проекте, в порядке убывания
 	 */
-	private static String getReviewList() throws IOException {
+	private static String getReviewList() {
 
-		HttpURLConnection con = setConnectionForReviewList();
-		String jsonRequest = "{\"limit\": 100000, \"sortBy\": \"id,desc\"}";
+		HttpURLConnection con = getConnection(RequestURL.GET_REVIEWS);
+		String jsonRequest = "{\"limit\": 100, \"sortBy\": \"id,desc\"}";
 
 		return doPostRequestAndReceiveResponse(con, jsonRequest);
 	}
 
-	/**
-	 * @return возвращает коннекцию для получения всех ревизий в ревью
-	 */
-	private static HttpURLConnection setConnectionForSummaryChangesInReview() {
-		URL getReviewRequestUrl = null;
+	private static HttpURLConnection getConnection(RequestURL requestURL) {
+		URL url = null;
 		try {
-			getReviewRequestUrl = new URL(RequestURL.GET_SUM_CHANGES.toString());
+			url = new URL(requestURL.toString());
+		} catch (MalformedURLException e) {
+			e.printStackTrace();
+		}
+		return configureConnection(url);
+	}
+
+	private static HttpURLConnection configureConnection(URL url) {
+		HttpURLConnection con = null;
+		try {
+
+			BufferedReader br = new BufferedReader(new FileReader("lgpw.txt"));
+			String authData = br.readLine();
+			br.close();
+
+			String basicAuth = "Basic " + /*тут вставить закодированные лог-пасс и убрать 3 строки выше*/new String(Base64.getEncoder().encode(authData.getBytes()));
+
+			con = (HttpURLConnection) url.openConnection();
+			con.setRequestMethod("POST");
+			con.setDoOutput(true);
+			con.setRequestProperty("Accept", "application/json");
+			con.setRequestProperty("Authorization", basicAuth);
+			con.setRequestProperty("Content-Type", "application/json");
 
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		return configureConnection(getReviewRequestUrl);
+		return con;
 	}
 
-	/**
-	 * @return возвращает коннекцию для получения всех ревью в проекте
-	 */
-	private static HttpURLConnection setConnectionForReviewList() {
-		URL getReviewRequestUrl = null;
-		try {
-			getReviewRequestUrl = new URL(RequestURL.GET_REVIEWS.toString());
-		} catch (MalformedURLException e) {
-			e.printStackTrace();
-		}
-		return configureConnection(getReviewRequestUrl);
-	}
-
-	/**
-	 * @return возвращает коннекцию для закрытия ревью
-	 */
-	private static HttpURLConnection setConnectionForCloseReview() {
-		URL getReviewRequestUrl = null;
-		try {
-			getReviewRequestUrl = new URL(RequestURL.CLOSE_REVIEW.toString());
-		} catch (MalformedURLException e) {
-			e.printStackTrace();
-		}
-		return configureConnection(getReviewRequestUrl);
-	}
 }
